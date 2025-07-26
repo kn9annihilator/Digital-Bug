@@ -47,13 +47,15 @@ Digital-Bug/
 
 * **An ESP8266-based board** (e.g., NodeMCU, Wemos D1 Mini)  
   [Buy NodeMCU (ESP8266) on Amazon](https://www.amazon.in/dp/B0829Z1W6Y)
-```
 * Arduino IDE with the ESP8266 board manager installed.
 * Required Arduino Libraries (list to be added).
 
 ### Installation
 
-1.  Clone the repository: `git clone https://github.com/your-username/PacketWraith.git`
+1.  Clone the repository: 
+```git
+git clone https://github.com/your-username/PacketWraith.git
+```
 2.  Open the `.ino` file in the Arduino IDE.
 3.  Install the required libraries.
 4.  Upload the code to your ESP8266.
@@ -66,7 +68,10 @@ Digital-Bug/
 
 1.  Power on the ESP8266.
 2.  Connect to the Wi-Fi network named **"Digitl Bug"** with the password **"deauther"**.
-3.  Open your web browser and navigate to `http://192.168.4.1`.
+3.  Open your web browser and navigate to 
+```html
+http://192.168.4.1
+```
 4.  Use the web interface to scan, analyze, and test.
 
 ### Autonomous Mode
@@ -85,9 +90,18 @@ Contributions are what make the open-source community such an amazing place to l
 If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
 
 1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+2.  Create your Feature Branch 
+```git
+git checkout -b feature/AmazingFeature
+```
+3.  Commit your Changes 
+```git
+git commit -m 'Add some AmazingFeature
+```
+4.  Push to the Branch 
+```git
+git push origin feature/AmazingFeature
+```
 5.  Open a Pull Request
 
 
