@@ -54,7 +54,7 @@ Digital-Bug/
 
 1.  Clone the repository: 
 ```git
-git clone https://github.com/your-username/PacketWraith.git
+git clone https://github.com/kn9annihilator/Digital-Bug/
 ```
 2.  Open the `.ino` file in the Arduino IDE.
 3.  Install the required libraries.
