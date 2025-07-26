@@ -48,7 +48,7 @@ Digital-Bug/
 * An ESP8266-based board (NodeMCU, Wemos D1 Mini, etc.)
 Link for buying:
 ```python
-[Amazon Link foor buying Node Mcu(ESP 8266)](https://www.amazon.in/dp/B0829Z1W6Y)
+['Amazon Link for buying Node Mcu(ESP 8266)']('https://www.amazon.in/dp/B0829Z1W6Y')
 ```
 * Arduino IDE with the ESP8266 board manager installed.
 * Required Arduino Libraries (list to be added).
