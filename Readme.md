@@ -60,6 +60,16 @@ git clone https://github.com/kn9annihilator/Digital-Bug/
 3.  Install the required libraries.
 4.  Upload the code to your ESP8266.
 
+### Setting up Arduino IDE
+1. Connect your ESP 8266 wifi module using a micro usb 'data transfer' cable to any usb port on your laptop
+2. Select the right board, as shown in the image:
+![alt text](image.png)
+3. Using "CTRL+,", go to preferences and use insert this in the "Additional Board Manager" ->
+```html
+http://arduino.esp8266.com/stable/package_esp8266com_index.json
+```
+4. Set Port to COM5 or COM6(whatever available)
+
 ---
 
 ##  Usage
