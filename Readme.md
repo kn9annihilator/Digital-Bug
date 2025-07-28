@@ -1,7 +1,7 @@
 # Digital Bug
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Platform](https://img.shields.io/badge/platform-ESP8266-blue.svg)
+![Hardware Used](https://img.shields.io/badge/platform-ESP8266-blue.svg)
 ![Status](https://img.shields.io/badge/status-in%20development-orange.svg)
 
 A multi-mode Wi-Fi security and analysis tool for the ESP8266. Digital Bug can operate as an interactive, web-controlled scanner or as an autonomous, "fire-and-forget" passive logger.
