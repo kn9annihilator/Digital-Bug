@@ -1,6 +1,16 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <LittleFS.h> // For the file system
 
+// --- Configuration ---
+const char* ssid = "Digital Bug";
+const char* password = "deauther";
+
+// Create a web server object on port 80
+ESP8266WebServer server(80);
+
+// --- Helper Functions ---
 // Helper function to convert encryption type number to a readable string
 String getEncryptionType(uint8_t type) {
   switch (type) {
@@ -19,52 +29,97 @@ String getEncryptionType(uint8_t type) {
   }
 }
 
-// Performs the Wi-Fi scan and prints the results in a formatted table
-void performScan() {
-  Serial.println("Scanning for Wi-Fi networks...");
+// --- Web Server Handlers ---
 
-  // WiFi.scanNetworks will return the number of networks found.
-  int numNetworks = WiFi.scanNetworks();
-
-  if (numNetworks == 0) {
-    Serial.println("No networks found.");
-    return;
+// This function is called when a client requests the root URL ("/")
+void handleRoot() {
+  if (LittleFS.exists("/index.html")) {
+    File file = LittleFS.open("/index.html", "r");
+    server.streamFile(file, "text/html");
+    file.close();
+  } else {
+    server.send(404, "text/plain", "Error: index.html not found. Did you upload the data folder?");
   }
-
-  Serial.printf("%d networks found:\n", numNetworks);
-  // Print a header for our table.
-  Serial.println("-------------------------------------------------------------------------");
-  Serial.printf("| %-2s | %-17s | %-4s | %-2s | %-5s | %-6s | %-32s |\n", "No", "BSSID", "RSSI", "Ch", "Encrypt", "Hidden", "SSID");
-  Serial.println("-------------------------------------------------------------------------");
-
-  // Loop through each found network and print its details
-  for (int i = 0; i < numNetworks; ++i) {
-    Serial.printf("| %2d | %17s | %4d | %2d | %-5s | %-6s | %-32s |\n",
-                  i + 1,
-                  WiFi.BSSIDstr(i).c_str(), // MAC Address of the AP
-                  WiFi.RSSI(i),             // Signal Strength
-                  WiFi.channel(i),          // Wi-Fi Channel
-                  getEncryptionType(WiFi.encryptionType(i)).c_str(), // Encryption Type
-                  WiFi.isHidden(i) ? "Yes" : "No", // Is the network hidden?
-                  WiFi.SSID(i).c_str()      // Network Name
-                 );
-  }
-  Serial.println("-------------------------------------------------------------------------");
 }
+
+// This function handles the "/scan" request
+void handleScan() {
+  Serial.println("[API] Received /scan request.");
+  int n = WiFi.scanNetworks();
+  String html = ""; // String to build the HTML table rows
+
+  if (n > 0) {
+    for (int i = 0; i < n; ++i) {
+      // Determine RSSI color based on signal strength
+      String rssi_color = "text-green-300";
+      if(WiFi.RSSI(i) < -70) rssi_color = "text-yellow-400";
+      if(WiFi.RSSI(i) < -80) rssi_color = "text-red-400";
+
+      // Build the HTML for one table row
+      html += "<tr class='hover:bg-green-900 hover:bg-opacity-20 transition duration-200'>";
+      html += "<td class='px-4 py-3 font-medium text-green-300'>" + WiFi.SSID(i) + "</td>";
+      html += "<td class='px-4 py-3 text-green-500'>" + WiFi.BSSIDstr(i) + "</td>";
+      html += "<td class='px-4 py-3 " + rssi_color + " font-semibold'>" + String(WiFi.RSSI(i)) + "</td>";
+      html += "<td class='px-4 py-3 text-green-500'>" + String(WiFi.channel(i)) + "</td>";
+      
+      // *** FIXED LINE ***
+      // The original line was broken into multiple parts to avoid the C++ string literal concatenation error.
+      html += "<td class='px-4 py-3'><span class='";
+      html += (WiFi.encryptionType(i) == ENC_TYPE_NONE ? "text-red-400" : "text-green-300");
+      html += "'>";
+      html += getEncryptionType(WiFi.encryptionType(i));
+      html += "</span></td>";
+
+      html += "<td class='px-4 py-3'><input type='radio' name='target_ap' class='form-radio h-4 w-4 bg-gray-900 border-green-700'></td>";
+      html += "</tr>";
+    }
+  } else {
+      html = "<tr><td colspan='6' class='text-center px-4 py-3 text-gray-500'>No networks found.</td></tr>";
+  }
+  
+  // Send the generated HTML back to the client
+  server.send(200, "text/html", html);
+  Serial.println("[API] Scan results sent.");
+}
+
+
+// This function is called when a client requests a page that doesn't exist
+void handleNotFound() {
+  server.send(404, "text/plain", "Not Found");
+}
+
+// --- Main Setup & Loop ---
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\nDigital Bug - Wi-Fi Scanner Initialized");
+  Serial.println("\n[INFO] Starting Digital Bug...");
 
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
+  if (!LittleFS.begin()) {
+    Serial.println("[ERROR] Failed to mount file system. Formatting...");
+    LittleFS.format();
+    if(!LittleFS.begin()){
+      Serial.println("[FATAL] File system format failed. Halting.");
+      return;
+    }
+  }
+  Serial.println("[OK] File system mounted.");
+
+  WiFi.softAP(ssid, password);
+  Serial.print("[OK] Access Point '");
+  Serial.print(ssid);
+  Serial.println("' started.");
+  Serial.print("[INFO] IP Address: ");
+  Serial.println(WiFi.softAPIP());
+
+  // Set up the web server handlers
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/scan", HTTP_GET, handleScan); // Add the handler for our scan API
+  server.onNotFound(handleNotFound);
+
+  server.begin();
+  Serial.println("[OK] Web server started.");
 }
 
 void loop() {
-  performScan();
-  Serial.println("\nScan will repeat in 10 seconds...");
-  // Wait 10 seconds before scanning again
-  delay(10000);
+  server.handleClient();
 }
