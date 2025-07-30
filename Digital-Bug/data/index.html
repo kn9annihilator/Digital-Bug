@@ -33,7 +33,7 @@
             background-color: #3bff01;
             border-color: #3bff01;
         }
-        .form-radio:focus {
+        .form-radio:focus, .form-checkbox:focus {
             box-shadow: 0 0 0 2px rgba(59, 255, 1, 0.3);
         }
         .hidden-section {
@@ -150,23 +150,28 @@
 
         <!-- Footer -->
         <footer class="text-center mt-8 pt-4 border-t border-green-900">
+            <p class="text-green-600 text-xs font-mono mb-1">Developed by kn9annihilator</p>
             <p class="text-green-700 text-xs font-mono">root@digitalbug:~# exit</p>
         </footer>
+
     </div>
 
     <script>
+        // --- DOM Element References ---
         const tabs = document.querySelectorAll('.tab-link');
         const contents = document.querySelectorAll('.tab-content');
-        const scanButton = document.getElementById('scan-button');
-        const resultsBody = document.getElementById('scan-results-body');
         const statusText = document.getElementById('status-text');
+        
+        const scanButton = document.getElementById('scan-button');
+        const apResultsBody = document.getElementById('scan-results-body');
 
-        // Tab switching logic
+        const clientScanButton = document.getElementById('client-scan-button');
+        const clientResultsBody = document.getElementById('client-results-body');
+
+        // --- Tab Switching Logic ---
         tabs.forEach(tab => {
             tab.addEventListener('click', (e) => {
                 e.preventDefault();
-                
-                // Update tab styles
                 tabs.forEach(item => {
                     item.classList.remove('border-green-500', 'text-green-300');
                     item.classList.add('border-transparent', 'text-green-600');
@@ -174,47 +179,63 @@
                 tab.classList.add('border-green-500', 'text-green-300');
                 tab.classList.remove('border-transparent', 'text-green-600');
 
-                // Show/hide content
                 const target = tab.getAttribute('data-tab');
                 contents.forEach(content => {
-                    if (content.id === `${target}-section`) {
-                        content.classList.remove('hidden-section');
-                    } else {
-                        content.classList.add('hidden-section');
-                    }
+                    content.id === `${target}-section` ? content.classList.remove('hidden-section') : content.classList.add('hidden-section');
                 });
             });
         });
 
-        // AP Scan logic
+        // --- AP Scan Logic ---
         scanButton.addEventListener('click', () => {
-            statusText.textContent = 'SCANNING...';
-            statusText.classList.remove('text-green-300');
-            statusText.classList.add('text-yellow-400');
-            scanButton.disabled = true;
-            scanButton.textContent = 'Scanning...';
-            resultsBody.innerHTML = '<tr><td colspan="6" class="text-center px-4 py-3 text-yellow-400">Scanning for networks... please wait.</td></tr>';
+            updateStatus('SCANNING...', 'yellow', true);
+            apResultsBody.innerHTML = '<tr><td colspan="6" class="text-center px-4 py-3 text-yellow-400">Scanning for networks... please wait.</td></tr>';
 
             fetch('/scan')
                 .then(response => response.text())
                 .then(html => {
-                    resultsBody.innerHTML = html;
-                    statusText.textContent = 'IDLE';
-                    statusText.classList.remove('text-yellow-400');
-                    statusText.classList.add('text-green-300');
-                    scanButton.disabled = false;
-                    scanButton.textContent = 'Execute Scan';
+                    apResultsBody.innerHTML = html;
+                    updateStatus('IDLE', 'green', false);
                 })
-                .catch(error => {
-                    console.error('Error fetching scan results:', error);
-                    resultsBody.innerHTML = '<tr><td colspan="6" class="text-center px-4 py-3 text-red-500">Error: Could not fetch scan results.</td></tr>';
-                    statusText.textContent = 'ERROR';
-                    statusText.classList.remove('text-yellow-400');
-                    statusText.classList.add('text-red-500');
-                    scanButton.disabled = false;
-                    scanButton.textContent = 'Execute Scan';
-                });
+                .catch(handleError);
         });
+
+        // --- Client Scan Logic ---
+        clientScanButton.addEventListener('click', () => {
+            const selectedAP = document.querySelector('input[name="target_ap"]:checked');
+            if (!selectedAP) {
+                alert("Please select a target Access Point from the scan list first.");
+                return;
+            }
+
+            const targetValue = selectedAP.value;
+            updateStatus('SNIFFING...', 'yellow', true);
+            clientResultsBody.innerHTML = '<tr><td colspan="4" class="text-center px-4 py-3 text-yellow-400">Sniffing for clients... this will take 10 seconds.</td></tr>';
+
+            // Send request to the /clients endpoint with the target info
+            fetch(`/clients?target=${encodeURIComponent(targetValue)}`)
+                .then(response => response.text())
+                .then(html => {
+                    clientResultsBody.innerHTML = html;
+                    updateStatus('IDLE', 'green', false);
+                })
+                .catch(handleError);
+        });
+
+        // --- Helper Functions ---
+        function updateStatus(text, color, busy) {
+            statusText.textContent = text.toUpperCase();
+            statusText.className = `font-bold text-${color}-400`; // Reset classes and apply new color
+            scanButton.disabled = busy;
+            clientScanButton.disabled = busy;
+            scanButton.textContent = busy ? 'Working...' : 'Execute Scan';
+            clientScanButton.textContent = busy ? 'Working...' : 'Scan for Clients';
+        }
+
+        function handleError(error) {
+            console.error('An error occurred:', error);
+            updateStatus('ERROR', 'red', false);
+        }
     </script>
 </body>
 </html>
