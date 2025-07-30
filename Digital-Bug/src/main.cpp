@@ -7,7 +7,6 @@
 #define AUTONOMOUS_MODE_PIN D3 // GPIO0
 
 // --- Data Structures for Packet Sniffing ---
-// This is the MAC header for 802.11 frames
 struct MacHeader {
   uint8_t frameControl[2];
   uint8_t duration[2];
@@ -22,6 +21,11 @@ const char* ssid = "Digital Bug";
 const char* password = "deauther";
 ESP8266WebServer server(80);
 bool autonomousMode = false;
+
+// NEW: A volatile boolean flag to signal stopping a process.
+// "volatile" tells the compiler that this variable can be changed by external factors
+// (like a web server request) at any time, preventing aggressive optimizations.
+volatile bool stopProcess = false;
 
 // --- Client Scanning Globals ---
 #define MAX_CLIENTS 20
@@ -41,34 +45,27 @@ String getEncryptionType(uint8_t type) {
   }
 }
 
-// Helper to convert MAC address byte array to a String
 String macToString(const uint8_t* mac) {
   char buf[20];
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return String(buf);
 }
 
-// Function to add a client to our list if it's not already there
 void addClient(String mac) {
-    if (clientCount >= MAX_CLIENTS) return; // Array is full
+    if (clientCount >= MAX_CLIENTS) return;
     for (int i = 0; i < clientCount; i++) {
-        if (foundClients[i] == mac) return; // Already in the list
+        if (foundClients[i] == mac) return;
     }
     foundClients[clientCount] = mac;
     clientCount++;
 }
 
 // --- The Core Packet Sniffer Callback ---
-// This function is called for every single packet captured by the radio
 void snifferCallback(uint8_t *buffer, uint16_t length) {
   MacHeader *header = (MacHeader*)buffer;
+  String addr1_str = macToString(header->addr1);
+  String addr2_str = macToString(header->addr2);
 
-  // Convert the addresses from the packet header to Strings for comparison
-  String addr1_str = macToString(header->addr1); // Destination
-  String addr2_str = macToString(header->addr2); // Source
-
-  // Identify clients by checking traffic to/from the target Access Point
-  // We are looking for packets where one address is the AP and the other is not broadcast
   if (addr1_str == targetBSSID && addr2_str != "FF:FF:FF:FF:FF:FF") {
       addClient(addr2_str);
   }
@@ -122,13 +119,15 @@ void handleScan() {
   Serial.println("[API] Scan results sent.");
 }
 
-// *** NEW IMPLEMENTATION of handleClientScan ***
 void handleClientScan() {
     Serial.println("[API] Received /clients request.");
     if (!server.hasArg("target")) {
         server.send(400, "text/plain", "Bad Request: Missing target parameter.");
         return;
     }
+
+    // NEW: Reset the stop flag at the beginning of a new scan.
+    stopProcess = false;
 
     String target = server.arg("target");
     int commaIndex = target.indexOf(',');
@@ -137,33 +136,35 @@ void handleClientScan() {
 
     Serial.printf("[INFO] Starting client scan on channel %d for BSSID %s\n", channel, targetBSSID.c_str());
 
-    // Reset client list
     clientCount = 0;
-
-    // Set channel and start promiscuous mode
     wifi_set_channel(channel);
     wifi_promiscuous_enable(1);
     wifi_set_promiscuous_rx_cb(snifferCallback);
 
-    // Scan for 10 seconds
     unsigned long startTime = millis();
-    while(millis() - startTime < 10000) {
-        // We just wait here while the callback does the work
-        delay(100);
+    // MODIFIED: The loop now also checks the stopProcess flag.
+    while(millis() - startTime < 10000 && !stopProcess) {
+        // We must call server.handleClient() inside long loops.
+        // This allows the server to process incoming requests, like the one for /stop.
+        server.handleClient();
+        delay(1); 
     }
 
-    // Stop sniffing
     wifi_promiscuous_enable(0);
-    Serial.printf("[INFO] Found %d clients.\n", clientCount);
+    
+    if (stopProcess) {
+        Serial.println("[INFO] Client scan stopped by user.");
+    } else {
+        Serial.printf("[INFO] Found %d clients.\n", clientCount);
+    }
 
-    // Build HTML response
     String html = "";
     if (clientCount > 0) {
         for (int i = 0; i < clientCount; i++) {
             html += "<tr class='hover:bg-green-900 hover:bg-opacity-20 transition duration-200'>";
             html += "<td class='px-4 py-3 text-green-300'>" + foundClients[i] + "</td>";
             html += "<td class='px-4 py-3 text-green-500'>" + targetBSSID + "</td>";
-            html += "<td class='px-4 py-3 text-green-500'>N/A</td>"; // Packet count not implemented yet
+            html += "<td class='px-4 py-3 text-green-500'>N/A</td>";
             html += "<td class='px-4 py-3'><input type='checkbox' name='target_client' class='form-checkbox h-4 w-4 bg-gray-900 border-green-700' value='" + foundClients[i] + "'></td>";
             html += "</tr>";
         }
@@ -171,6 +172,13 @@ void handleClientScan() {
         html = "<tr><td colspan='4' class='text-center px-4 py-3 text-yellow-400'>No clients found for this AP.</td></tr>";
     }
     server.send(200, "text/html", html);
+}
+
+// NEW: This handler is called when the /stop URL is requested.
+void handleStop() {
+    Serial.println("[API] Received /stop request.");
+    stopProcess = true; // Set the flag to true
+    server.send(200, "text/plain", "OK. Process will be stopped.");
 }
 
 void handleAttack() {
@@ -222,6 +230,7 @@ void setup() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/scan", HTTP_GET, handleScan);
   server.on("/clients", HTTP_GET, handleClientScan);
+  server.on("/stop", HTTP_GET, handleStop); // NEW: Register the stop handler
   server.on("/attack", HTTP_POST, handleAttack);
   server.onNotFound(handleNotFound);
 
@@ -231,6 +240,8 @@ void setup() {
 
 void loop() {
   if (!autonomousMode) {
+    // In the main loop, we only need to handle client requests.
+    // The client scan loop now handles its own requests.
     server.handleClient();
   }
 }
