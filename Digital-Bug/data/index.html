@@ -169,6 +169,8 @@
         const clientScanButton = document.getElementById('client-scan-button');
         const clientResultsBody = document.getElementById('client-results-body');
 
+        const deauthButton = document.getElementById('deauth-button');
+
         const stopButton = document.getElementById('stop-button');
         let abortController = new AbortController();
 
@@ -226,7 +228,6 @@
                 .catch(err => {
                     if (err.name === 'AbortError') {
                         clientResultsBody.innerHTML = '<tr><td colspan="4" class="text-center px-4 py-3 text-yellow-400">Scan stopped by user.</td></tr>';
-                        console.log('Fetch aborted by user.');
                     } else {
                         handleError(err);
                     }
@@ -234,12 +235,66 @@
                 });
         });
 
+        // --- Deauth Attack Logic ---
+        deauthButton.addEventListener('click', () => {
+            const selectedAP = document.querySelector('input[name="target_ap"]:checked');
+            const selectedClients = document.querySelectorAll('input[name="target_client"]:checked');
+
+            if (!selectedAP) {
+                alert("An Access Point must be selected as a target.");
+                return;
+            }
+            if (selectedClients.length === 0) {
+                alert("At least one Client must be selected as a target.");
+                return;
+            }
+
+            const apValue = selectedAP.value.split(',');
+            const ap_bssid = apValue[0];
+            const channel = apValue[1];
+
+            let client_macs = [];
+            selectedClients.forEach(client => {
+                client_macs.push(client.value);
+            });
+            const clients_str = client_macs.join(',');
+
+            updateStatus('ATTACKING', 'red', true);
+            
+            // We use a POST request to send the attack parameters
+            const formData = new URLSearchParams();
+            formData.append('ap_bssid', ap_bssid);
+            formData.append('channel', channel);
+            formData.append('clients', clients_str);
+
+            abortController = new AbortController();
+            fetch('/attack', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData,
+                signal: abortController.signal
+            }).then(response => {
+                if(response.ok) {
+                    alert("Attack started. Press STOP to end the attack.");
+                } else {
+                    alert("Failed to start attack.");
+                    updateStatus('IDLE', 'green', false);
+                }
+            }).catch(err => {
+                if (err.name !== 'AbortError') {
+                    handleError(err);
+                }
+                updateStatus('IDLE', 'green', false);
+            });
+        });
+
         // --- Stop Button Logic ---
         stopButton.addEventListener('click', () => {
-            console.log("Stop button clicked. Aborting fetch...");
             abortController.abort();
-            // Also send a request to the server to stop its internal process
             fetch('/stop').catch(err => console.error("Could not send stop signal to server:", err));
+            updateStatus('STOPPED', 'yellow', false);
         });
 
         // --- Helper Functions ---
@@ -248,6 +303,7 @@
             statusText.className = `font-bold text-${color}-400`;
             scanButton.disabled = busy;
             clientScanButton.disabled = busy;
+            deauthButton.disabled = busy;
             
             if(busy) {
                 stopButton.classList.remove('hidden');
