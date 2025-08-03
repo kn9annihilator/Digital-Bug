@@ -33,8 +33,9 @@
             background-color: #3bff01;
             border-color: #3bff01;
         }
-        .form-radio:focus, .form-checkbox:focus {
+        .form-radio:focus, .form-checkbox:focus, .form-input:focus {
             box-shadow: 0 0 0 2px rgba(59, 255, 1, 0.3);
+            border-color: #3bff01;
         }
         .hidden {
             display: none;
@@ -77,6 +78,9 @@
                         </a>
                         <a href="#" data-tab="attacks" class="tab-link border-transparent text-green-600 hover:text-green-300 hover:border-green-700 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg">
                             ./attack.sh
+                        </a>
+                        <a href="#" data-tab="settings" class="tab-link border-transparent text-green-600 hover:text-green-300 hover:border-green-700 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg">
+                            ./config.sh
                         </a>
                     </nav>
                 </div>
@@ -145,7 +149,7 @@
                     <h2 class="text-2xl font-semibold terminal-glow">Probe Request Sniffer</h2>
                     <div class="flex items-center space-x-2">
                         <label for="probe-channel" class="font-mono text-sm">Channel:</label>
-                        <input type="number" id="probe-channel" value="1" min="1" max="14" class="bg-gray-800 border border-green-700 text-green-300 rounded-md w-20 text-center">
+                        <input type="number" id="probe-channel" value="1" min="1" max="14" class="form-input bg-gray-800 border border-green-700 text-green-300 rounded-md w-20 text-center">
                         <button id="probe-sniff-button" class="bg-green-800 hover:bg-green-700 border border-green-600 text-green-300 font-bold py-2 px-4 rounded-md transition duration-300">
                             Sniff Probes
                         </button>
@@ -180,6 +184,27 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Settings Section -->
+            <div id="settings-section" class="tab-content hidden">
+                <h2 class="text-2xl font-semibold terminal-glow mb-4">Configuration Settings</h2>
+                <div class="bg-black bg-opacity-50 border border-green-900 rounded-lg p-6 space-y-4 max-w-lg">
+                    <div>
+                        <label for="ap-ssid" class="block text-sm font-medium text-green-300 mb-1">Access Point SSID</label>
+                        <input type="text" id="ap-ssid" class="form-input bg-gray-800 border border-green-700 text-green-300 rounded-md w-full p-2 font-mono">
+                    </div>
+                    <div>
+                        <label for="ap-password" class="block text-sm font-medium text-green-300 mb-1">Access Point Password</label>
+                        <input type="password" id="ap-password" class="form-input bg-gray-800 border border-green-700 text-green-300 rounded-md w-full p-2 font-mono">
+                        <p class="text-xs text-yellow-400 mt-1">Password must be at least 8 characters.</p>
+                    </div>
+                    <div class="pt-2">
+                        <button id="save-settings-button" class="bg-green-800 hover:bg-green-700 border border-green-600 text-green-300 font-bold py-2 px-4 rounded-md transition duration-300">
+                            Save and Restart
+                        </button>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <!-- Footer -->
@@ -208,6 +233,10 @@
 
         const deauthButton = document.getElementById('deauth-button');
 
+        const saveSettingsButton = document.getElementById('save-settings-button');
+        const apSsidInput = document.getElementById('ap-ssid');
+        const apPasswordInput = document.getElementById('ap-password');
+
         const stopButton = document.getElementById('stop-button');
         let abortController = new AbortController();
 
@@ -226,6 +255,17 @@
                 contents.forEach(content => {
                     content.id === `${target}-section` ? content.classList.remove('hidden') : content.classList.add('hidden');
                 });
+
+                // If settings tab is opened, fetch current config
+                if (target === 'settings') {
+                    fetch('/getconfig')
+                        .then(response => response.json())
+                        .then(data => {
+                            apSsidInput.value = data.ssid;
+                            apPasswordInput.value = data.password;
+                        })
+                        .catch(handleError);
+                }
             });
         });
 
@@ -300,6 +340,35 @@
             });
         });
 
+        // --- Save Settings Logic ---
+        saveSettingsButton.addEventListener('click', () => {
+            const newSsid = apSsidInput.value;
+            const newPassword = apPasswordInput.value;
+
+            if (newPassword.length < 8) {
+                alert("Password must be at least 8 characters long.");
+                return;
+            }
+
+            updateStatus('SAVING...', 'yellow', true);
+            
+            const formData = new URLSearchParams();
+            formData.append('ssid', newSsid);
+            formData.append('password', newPassword);
+
+            fetch('/setconfig', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            })
+            .then(response => response.text())
+            .then(text => {
+                alert(text); // Show "Settings saved. Device will restart."
+                updateStatus('RESTARTING...', 'red', true);
+            })
+            .catch(handleError);
+        });
+
         // --- Stop Button Logic ---
         stopButton.addEventListener('click', () => {
             abortController.abort();
@@ -315,6 +384,7 @@
             clientScanButton.disabled = busy;
             probeSniffButton.disabled = busy;
             deauthButton.disabled = busy;
+            saveSettingsButton.disabled = busy;
             stopButton.classList.toggle('hidden', !busy);
         }
 

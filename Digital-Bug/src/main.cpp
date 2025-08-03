@@ -3,6 +3,7 @@
 #include <ESP8266WebServer.h>
 #include <LittleFS.h>
 #include <FS.h>
+#include <ArduinoJson.h> // For handling JSON configuration
 
 // --- Pin Configuration ---
 #define AUTONOMOUS_MODE_PIN D3 // GPIO0 (Flash button)
@@ -28,14 +29,17 @@ struct ProbeRequest {
     String ssid;
 };
 
+
 // --- Global Variables ---
-const char* ssid = "Digital Bug";
-const char* password = "deauther";
+// MODIFIED: These are now String objects to be loaded from config
+String ap_ssid = "Digital Bug";
+String ap_password = "deauther";
+
 ESP8266WebServer server(80);
 bool autonomousMode = false;
 volatile bool stopProcess = false;
 
-// --- Scanning Globals ---
+// Scanning Globals
 #define MAX_RESULTS 30
 String foundClients[MAX_RESULTS];
 int clientCount = 0;
@@ -44,9 +48,47 @@ int probeCount = 0;
 String targetBSSID = "";
 int sniffingChannel = 0;
 
-// --- Autonomous Mode Globals ---
+// Autonomous Mode Globals
 String loggedProbes[100]; 
 int loggedProbeCount = 0;
+
+
+// --- Configuration Management ---
+void loadConfiguration() {
+    File configFile = LittleFS.open("/config.json", "r");
+    if (!configFile) {
+        Serial.println("[WARN] config.json not found, using default settings.");
+        return;
+    }
+
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, configFile);
+    if (error) {
+        Serial.println("[ERROR] Failed to read config file, using default settings.");
+        return;
+    }
+
+    ap_ssid = doc["ssid"].as<String>();
+    ap_password = doc["password"].as<String>();
+    configFile.close();
+    Serial.println("[OK] Configuration loaded.");
+}
+
+void saveConfiguration() {
+    StaticJsonDocument<256> doc;
+    doc["ssid"] = ap_ssid;
+    doc["password"] = ap_password;
+
+    File configFile = LittleFS.open("/config.json", "w");
+    if (!configFile) {
+        Serial.println("[ERROR] Failed to open config file for writing.");
+        return;
+    }
+
+    serializeJson(doc, configFile);
+    configFile.close();
+    Serial.println("[OK] Configuration saved.");
+}
 
 // --- Helper Functions ---
 String getEncryptionType(uint8_t type) {
@@ -88,6 +130,7 @@ void addProbe(String mac, String ssid) {
     foundProbes[probeCount].ssid = ssid;
     probeCount++;
 }
+
 
 // --- Sniffer Callbacks ---
 void universalSnifferCallback(uint8_t *buffer, uint16_t length) {
@@ -149,6 +192,7 @@ void autonomousSnifferCallback(uint8_t *buffer, uint16_t length) {
     }
 }
 
+
 // --- Attack Function ---
 void sendDeauthFrame(const uint8_t* ap_mac, const uint8_t* client_mac) {
     DeauthFrame deauth;
@@ -161,6 +205,7 @@ void sendDeauthFrame(const uint8_t* ap_mac, const uint8_t* client_mac) {
     deauth.reasonCode[0] = 0x07; deauth.reasonCode[1] = 0x00;
     wifi_send_pkt_freedom((uint8_t*)&deauth, sizeof(DeauthFrame), 0);
 }
+
 
 // --- Web Server Handlers ---
 void handleRoot() {
@@ -302,6 +347,27 @@ void handleDownload() {
     }
 }
 
+void handleGetConfig() {
+    StaticJsonDocument<256> doc;
+    doc["ssid"] = ap_ssid;
+    doc["password"] = ap_password;
+    String output;
+    serializeJson(doc, output);
+    server.send(200, "application/json", output);
+}
+
+void handleSetConfig() {
+    if (!server.hasArg("ssid") || !server.hasArg("password")) {
+        server.send(400, "text/plain", "Bad Request");
+        return;
+    }
+    ap_ssid = server.arg("ssid");
+    ap_password = server.arg("password");
+    saveConfiguration();
+    server.send(200, "text/plain", "Settings saved. The device will now restart to apply changes.");
+    delay(1000);
+    ESP.restart();
+}
 
 void handleNotFound() {
   server.send(404, "text/plain", "Not Found");
@@ -319,15 +385,13 @@ void runAutonomousMode() {
         digitalWrite(LED_PIN, LOW); delay(50); digitalWrite(LED_PIN, HIGH); delay(50);
         digitalWrite(LED_PIN, LOW); delay(50); digitalWrite(LED_PIN, HIGH);
 
-        // Hop through channels 1, 6, 11 for probe sniffing
         for (int ch : {1, 6, 11}) {
             wifi_set_channel(ch);
             wifi_promiscuous_enable(1);
-            delay(5000); // Sniff on each channel for 5 seconds
+            delay(5000);
         }
         wifi_promiscuous_enable(0);
 
-        // AP Scan
         int n = WiFi.scanNetworks();
         if (n > 0) {
             File logFile = LittleFS.open("/networks.log", "a");
@@ -363,6 +427,8 @@ void setup() {
     Serial.println("[FATAL] File system failed to mount. Halting.");
     return;
   }
+  
+  loadConfiguration();
 
   if (digitalRead(AUTONOMOUS_MODE_PIN) == LOW) {
     autonomousMode = true;
@@ -371,9 +437,9 @@ void setup() {
 
   Serial.println("\n[MODE] Interactive Mode Active. Starting web server...");
   
-  WiFi.softAP(ssid, password);
+  WiFi.softAP(ap_ssid.c_str(), ap_password.c_str());
   Serial.print("[OK] Access Point '");
-  Serial.print(ssid);
+  Serial.print(ap_ssid);
   Serial.println("' started.");
   Serial.print("[INFO] IP Address: ");
   Serial.println(WiFi.softAPIP());
@@ -386,6 +452,8 @@ void setup() {
   server.on("/stop", HTTP_GET, handleStop);
   server.on("/logs", HTTP_GET, handleLogs);
   server.on("/download", HTTP_GET, handleDownload);
+  server.on("/getconfig", HTTP_GET, handleGetConfig);
+  server.on("/setconfig", HTTP_POST, handleSetConfig);
   server.onNotFound(handleNotFound);
 
   server.begin();
