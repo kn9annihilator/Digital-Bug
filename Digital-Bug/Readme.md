@@ -23,8 +23,6 @@
 # Digital Bug
 
 
-https://img.shields.io/badge/left-right-f39f37
-
 Digital Bug is a versatile Wi-Fi security and network analysis tool built for the ESP8266 microcontroller. It is designed for both interactive, controlled testing and covert, long-term reconnaissance, making it a valuable asset for penetration testers and cybersecurity professionals.
 
 ---
