@@ -1,8 +1,16 @@
+<p align="center">
+<img src="https://img.shields.io/github/stars/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Stars"/>
+<img src="https://img.shields.io/github/forks/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Forks"/>
+<img src="https://img.shields.io/github/issues/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Issues"/>
+<img src="https://img.shields.io/github/last-commit/your-username/Digital-Bug?style=for-the-badge&logo=git" alt="GitHub Last Commit"/>
+<br>
+<img src="https://img.shields.io/badge/Platform-ESP8266-blue.svg?style=for-the-badge&logo=espressif" alt="Platform"/>
+<img src="https://img.shields.io/badge/Framework-Arduino-00979D.svg?style=for-the-badge&logo=arduino" alt="Framework"/>
+<img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"/>
+</p>
+
 # Digital Bug
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Hardware Used](https://img.shields.io/badge/platform-ESP8266-blue.svg)
-![Status](https://img.shields.io/badge/status-in%20development-orange.svg)
 
 A multi-mode Wi-Fi security and analysis tool for the ESP8266. Digital Bug can operate as an interactive, web-controlled scanner or as an autonomous, "fire-and-forget" passive logger.
 
