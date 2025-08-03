@@ -26,18 +26,18 @@ This tool is for educational and professional testing purposes on networks you o
 ## Project structure
 ```js
 Digital-Bug/
-├── .gitignore          # Ignores build files and sensitive data
-├── LICENSE             # Your chosen license file (e.g., MIT)
-├── README.md           # The file we just designed
+├── .gitignore
+├── LICENSE
+├── README.md
+├── platformio.ini
 │
-├── digitalbug.ino    # The main Arduino sketch file
+├── data/
+│   └── index.html
 │
-├── data/               # For the web interface files
-│   ├── index.html
-│   ├── style.css
-│   └── script.js
+├── src/
+│   └── main.cpp
 │
-└── docs/               # For documentation and images
+└── docs/
     └── web_ui_screenshot.png
 ```
 
