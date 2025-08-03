@@ -1,10 +1,4 @@
-<!-- GitHub Stars --> ![GitHub stars](https://img.shields.io/github/stars/kn9annihilator/Digital-Bug?style=social) 
-<!-- GitHub Issues --> ![GitHub issues](https://img.shields.io/github/issues/kn9annihilator/Digital-Bug) 
-<!-- Last Commit --> ![Last Commit](https://img.shields.io/github/last-commit/kn9annihilator/Digital-Bug) 
-<!-- Platform (ESP8266) --> ![Platform](https://img.shields.io/badge/platform-ESP8266-blue) 
-<!-- License: MIT --> ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) 
-<!-- Project Status --> ![Status](https://img.shields.io/badge/status-complete-brightgreen) 
-<!-- Funny/Cool Badge --> ![Made with Rage and Coffee](https://img.shields.io/badge/made%20with-rage%20%26%20coffee-critical?logo=buymeacoffee&logoColor=white)
+<!-- GitHub Stars --> ![GitHub stars](https://img.shields.io/github/stars/kn9annihilator/Digital-Bug?style=social)  <!-- GitHub Issues --> ![GitHub issues](https://img.shields.io/github/issues/kn9annihilator/Digital-Bug)  <!-- Last Commit --> ![Last Commit](https://img.shields.io/github/last-commit/kn9annihilator/Digital-Bug)  <!-- Platform (ESP8266) --> ![Platform](https://img.shields.io/badge/platform-ESP8266-blue)  <!-- License: MIT --> ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)  <!-- Project Status --> ![Status](https://img.shields.io/badge/status-complete-brightgreen)  <!-- Funny/Cool Badge --> ![Made with Rage and Coffee](https://img.shields.io/badge/made%20with-rage%20%26%20coffee-critical?logo=buymeacoffee&logoColor=white)
 
 
 
