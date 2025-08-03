@@ -1,6 +1,13 @@
-<!-- GitHub Stars --> ![GitHub stars](https://img.shields.io/github/stars/kn9annihilator/Digital-Bug?style=social)  <!-- GitHub Issues --> ![GitHub issues](https://img.shields.io/github/issues/kn9annihilator/Digital-Bug)  <!-- Last Commit --> ![Last Commit](https://img.shields.io/github/last-commit/kn9annihilator/Digital-Bug)  <!-- Platform (ESP8266) --> ![Platform](https://img.shields.io/badge/platform-ESP8266-blue)  <!-- License: MIT --> ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)  <!-- Project Status --> ![Status](https://img.shields.io/badge/status-complete-brightgreen)  <!-- Funny/Cool Badge --> ![Made with Rage and Coffee](https://img.shields.io/badge/made%20with-rage%20%26%20coffee-critical?logo=buymeacoffee&logoColor=white)
-
-
+<p align="center">
+  <img src="https://img.shields.io/github/stars/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Stars"/>
+  <img src="https://img.shields.io/github/forks/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Forks"/>
+  <img src="https://img.shields.io/github/issues/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Issues"/>
+  <img src="https://img.shields.io/github/last-commit/your-username/Digital-Bug?style=for-the-badge&logo=git" alt="GitHub Last Commit"/>
+  <br>
+  <img src="https://img.shields.io/badge/Platform-ESP8266-blue.svg?style=for-the-badge&logo=espressif" alt="Platform"/>
+  <img src="https://img.shields.io/badge/Framework-Arduino-00979D.svg?style=for-the-badge&logo=arduino" alt="Framework"/>
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"/>
+</p>
 
 # Digital Bug
 
