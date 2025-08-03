@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.shields.io/github/stars/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Stars"/>
-  <img src="https://img.shields.io/github/forks/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Forks"/>
-  <img src="https://img.shields.io/github/issues/your-username/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Issues"/>
-  <img src="https://img.shields.io/github/last-commit/your-username/Digital-Bug?style=for-the-badge&logo=git" alt="GitHub Last Commit"/>
+  <img src="https://img.shields.io/github/stars/kn9annihilator/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Stars"/>
+  <img src="https://img.shields.io/github/forks/kn9annihilator/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Forks"/>
+  <img src="https://img.shields.io/github/issues/kn9annihilator/Digital-Bug?style=for-the-badge&logo=github" alt="GitHub Issues"/>
+  <img src="https://img.shields.io/github/last-commit/kn9annihilator/Digital-Bug?style=for-the-badge&logo=git" alt="GitHub Last Commit"/>
   <br>
   <img src="https://img.shields.io/badge/Platform-ESP8266-blue.svg?style=for-the-badge&logo=espressif" alt="Platform"/>
   <img src="https://img.shields.io/badge/Framework-Arduino-00979D.svg?style=for-the-badge&logo=arduino" alt="Framework"/>
