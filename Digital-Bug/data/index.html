@@ -72,6 +72,9 @@
                         <a href="#" data-tab="clients" class="tab-link border-transparent text-green-600 hover:text-green-300 hover:border-green-700 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg">
                             ./clients.sh
                         </a>
+                        <a href="#" data-tab="probes" class="tab-link border-transparent text-green-600 hover:text-green-300 hover:border-green-700 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg">
+                            ./probes.sh
+                        </a>
                         <a href="#" data-tab="attacks" class="tab-link border-transparent text-green-600 hover:text-green-300 hover:border-green-700 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-lg">
                             ./attack.sh
                         </a>
@@ -110,7 +113,7 @@
 
             <!-- Clients Section -->
             <div id="clients-section" class="tab-content hidden">
-                <div class="flex justify-between items-center mb-4">
+                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold terminal-glow">Client Device Scan</h2>
                     <button id="client-scan-button" class="bg-green-800 hover:bg-green-700 border border-green-600 text-green-300 font-bold py-2 px-4 rounded-md transition duration-300">
                         Scan for Clients
@@ -130,6 +133,36 @@
                             </thead>
                             <tbody id="client-results-body" class="divide-y divide-green-900 divide-opacity-50">
                                 <tr><td colspan="4" class="text-center px-4 py-3 text-green-700">Select a target AP and click 'Scan for Clients'.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Probes Section -->
+            <div id="probes-section" class="tab-content hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold terminal-glow">Probe Request Sniffer</h2>
+                    <div class="flex items-center space-x-2">
+                        <label for="probe-channel" class="font-mono text-sm">Channel:</label>
+                        <input type="number" id="probe-channel" value="1" min="1" max="14" class="bg-gray-800 border border-green-700 text-green-300 rounded-md w-20 text-center">
+                        <button id="probe-sniff-button" class="bg-green-800 hover:bg-green-700 border border-green-600 text-green-300 font-bold py-2 px-4 rounded-md transition duration-300">
+                            Sniff Probes
+                        </button>
+                    </div>
+                </div>
+                 <p class="text-sm text-yellow-400 mb-4 font-mono">Sniffs on a selected channel for 15 seconds to discover networks devices are searching for.</p>
+                <div class="bg-black bg-opacity-50 border border-green-900 rounded-lg shadow-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-left text-sm font-mono">
+                            <thead class="bg-green-900 bg-opacity-40 text-green-300 uppercase tracking-wider">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3">CLIENT MAC</th>
+                                    <th scope="col" class="px-4 py-3">SEARCHING FOR SSID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="probe-results-body" class="divide-y divide-green-900 divide-opacity-50">
+                                <tr><td colspan="2" class="text-center px-4 py-3 text-green-700">Select a channel and click 'Sniff Probes'.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -169,6 +202,10 @@
         const clientScanButton = document.getElementById('client-scan-button');
         const clientResultsBody = document.getElementById('client-results-body');
 
+        const probeSniffButton = document.getElementById('probe-sniff-button');
+        const probeChannelInput = document.getElementById('probe-channel');
+        const probeResultsBody = document.getElementById('probe-results-body');
+
         const deauthButton = document.getElementById('deauth-button');
 
         const stopButton = document.getElementById('stop-button');
@@ -196,96 +233,69 @@
         scanButton.addEventListener('click', () => {
             updateStatus('SCANNING...', 'yellow', true);
             apResultsBody.innerHTML = '<tr><td colspan="6" class="text-center px-4 py-3 text-yellow-400">Scanning for networks... please wait.</td></tr>';
-
-            fetch('/scan')
-                .then(response => response.text())
-                .then(html => {
-                    apResultsBody.innerHTML = html;
-                    updateStatus('IDLE', 'green', false);
-                })
-                .catch(handleError);
+            fetch('/scan').then(response => response.text()).then(html => {
+                apResultsBody.innerHTML = html;
+                updateStatus('IDLE', 'green', false);
+            }).catch(handleError);
         });
 
         // --- Client Scan Logic ---
         clientScanButton.addEventListener('click', () => {
             const selectedAP = document.querySelector('input[name="target_ap"]:checked');
-            if (!selectedAP) {
-                alert("Please select a target Access Point from the scan list first.");
-                return;
-            }
-
+            if (!selectedAP) { alert("Please select a target Access Point from the scan list first."); return; }
             const targetValue = selectedAP.value;
             updateStatus('SNIFFING...', 'yellow', true);
             clientResultsBody.innerHTML = '<tr><td colspan="4" class="text-center px-4 py-3 text-yellow-400">Sniffing for clients... this will take 10 seconds.</td></tr>';
-            
             abortController = new AbortController();
-            fetch(`/clients?target=${encodeURIComponent(targetValue)}`, { signal: abortController.signal })
-                .then(response => response.text())
-                .then(html => {
-                    clientResultsBody.innerHTML = html;
-                    updateStatus('IDLE', 'green', false);
-                })
-                .catch(err => {
-                    if (err.name === 'AbortError') {
-                        clientResultsBody.innerHTML = '<tr><td colspan="4" class="text-center px-4 py-3 text-yellow-400">Scan stopped by user.</td></tr>';
-                    } else {
-                        handleError(err);
-                    }
-                    updateStatus('IDLE', 'green', false);
-                });
+            fetch(`/clients?target=${encodeURIComponent(targetValue)}`, { signal: abortController.signal }).then(response => response.text()).then(html => {
+                clientResultsBody.innerHTML = html;
+                updateStatus('IDLE', 'green', false);
+            }).catch(err => {
+                if (err.name === 'AbortError') { clientResultsBody.innerHTML = '<tr><td colspan="4" class="text-center px-4 py-3 text-yellow-400">Scan stopped by user.</td></tr>'; } 
+                else { handleError(err); }
+                updateStatus('IDLE', 'green', false);
+            });
+        });
+
+        // --- Probe Sniff Logic ---
+        probeSniffButton.addEventListener('click', () => {
+            const channel = probeChannelInput.value;
+            updateStatus('SNIFFING PROBES...', 'yellow', true);
+            probeResultsBody.innerHTML = `<tr><td colspan="2" class="text-center px-4 py-3 text-yellow-400">Sniffing for probe requests on channel ${channel} for 15 seconds...</td></tr>`;
+            abortController = new AbortController();
+            fetch(`/probes?channel=${channel}`, { signal: abortController.signal }).then(response => response.text()).then(html => {
+                probeResultsBody.innerHTML = html;
+                updateStatus('IDLE', 'green', false);
+            }).catch(err => {
+                if (err.name === 'AbortError') { probeResultsBody.innerHTML = '<tr><td colspan="2" class="text-center px-4 py-3 text-yellow-400">Sniff stopped by user.</td></tr>'; } 
+                else { handleError(err); }
+                updateStatus('IDLE', 'green', false);
+            });
         });
 
         // --- Deauth Attack Logic ---
         deauthButton.addEventListener('click', () => {
             const selectedAP = document.querySelector('input[name="target_ap"]:checked');
             const selectedClients = document.querySelectorAll('input[name="target_client"]:checked');
-
-            if (!selectedAP) {
-                alert("An Access Point must be selected as a target.");
-                return;
-            }
-            if (selectedClients.length === 0) {
-                alert("At least one Client must be selected as a target.");
-                return;
-            }
-
+            if (!selectedAP) { alert("An Access Point must be selected as a target."); return; }
+            if (selectedClients.length === 0) { alert("At least one Client must be selected as a target."); return; }
             const apValue = selectedAP.value.split(',');
             const ap_bssid = apValue[0];
             const channel = apValue[1];
-
-            let client_macs = [];
-            selectedClients.forEach(client => {
-                client_macs.push(client.value);
-            });
+            let client_macs = Array.from(selectedClients).map(client => client.value);
             const clients_str = client_macs.join(',');
-
             updateStatus('ATTACKING', 'red', true);
-            
-            // We use a POST request to send the attack parameters
             const formData = new URLSearchParams();
             formData.append('ap_bssid', ap_bssid);
             formData.append('channel', channel);
             formData.append('clients', clients_str);
-
             abortController = new AbortController();
-            fetch('/attack', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: formData,
-                signal: abortController.signal
-            }).then(response => {
-                if(response.ok) {
-                    alert("Attack started. Press STOP to end the attack.");
-                } else {
-                    alert("Failed to start attack.");
-                    updateStatus('IDLE', 'green', false);
-                }
+            fetch('/attack', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', }, body: formData, signal: abortController.signal })
+            .then(response => {
+                if(response.ok) { alert("Attack started. Press STOP to end the attack."); } 
+                else { alert("Failed to start attack."); updateStatus('IDLE', 'green', false); }
             }).catch(err => {
-                if (err.name !== 'AbortError') {
-                    handleError(err);
-                }
+                if (err.name !== 'AbortError') { handleError(err); }
                 updateStatus('IDLE', 'green', false);
             });
         });
@@ -293,7 +303,7 @@
         // --- Stop Button Logic ---
         stopButton.addEventListener('click', () => {
             abortController.abort();
-            fetch('/stop').catch(err => console.error("Could not send stop signal to server:", err));
+            fetch('/stop').catch(err => console.error("Could not send stop signal:", err));
             updateStatus('STOPPED', 'yellow', false);
         });
 
@@ -303,13 +313,9 @@
             statusText.className = `font-bold text-${color}-400`;
             scanButton.disabled = busy;
             clientScanButton.disabled = busy;
+            probeSniffButton.disabled = busy;
             deauthButton.disabled = busy;
-            
-            if(busy) {
-                stopButton.classList.remove('hidden');
-            } else {
-                stopButton.classList.add('hidden');
-            }
+            stopButton.classList.toggle('hidden', !busy);
         }
 
         function handleError(error) {
