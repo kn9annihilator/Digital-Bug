@@ -1,3 +1,6 @@
+
+# Digital Bug
+
 <!-- GitHub Stars -->
 ![GitHub stars](https://img.shields.io/github/stars/kn9annihilator/Digital-Bug?style=social)
 
@@ -18,9 +21,6 @@
 
 <!-- Funny/Cool Badge -->
 ![Made with Rage and Coffee](https://img.shields.io/badge/made%20with-rage%20%26%20coffee-critical?logo=buymeacoffee&logoColor=white)
-
-
-# Digital Bug
 
 
 Digital Bug is a versatile Wi-Fi security and network analysis tool built for the ESP8266 microcontroller. It is designed for both interactive, controlled testing and covert, long-term reconnaissance, making it a valuable asset for penetration testers and cybersecurity professionals.
